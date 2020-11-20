@@ -310,7 +310,8 @@ func main() {
 
 	// tempdir
 	if gotplInflatorRoot != "" {
-		p.TempDir = filepath.Join(gotplInflatorRoot, os.Getenv("ENV"))
+		//p.TempDir = filepath.Join(gotplInflatorRoot, os.Getenv("ENV"))
+		p.TempDir = filepath.Join(gotplInflatorRoot)
 		if _, err = os.Stat(p.TempDir); os.IsNotExist(err) {
 			err = os.MkdirAll(p.TempDir, 0770)
 		}
