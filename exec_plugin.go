@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io/ioutil"
 	"log"
 	"os"
@@ -116,7 +117,7 @@ func RenderGotpl(t string, context *map[string]interface{}) {
 	// read template
 	tContent, err := ioutil.ReadFile(t)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Read template failed: %s", err)
 	}
 
 	// init
@@ -143,7 +144,7 @@ func RenderGotpl(t string, context *map[string]interface{}) {
 	tBasename := strings.TrimSuffix(t, filepath.Ext(t))
 	err = ioutil.WriteFile(tBasename, rb.Bytes(), 0640)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Write template failed: %s", err)
 	}
 }
 
@@ -169,16 +170,29 @@ func getRepoCreds(repoCreds string) string {
 	return cr
 }
 
+// hash generate fowler–noll–vo hash from string
+func hash(s string) uint32 {
+	h := fnv.New32a()
+	h.Write([]byte(s))
+	return h.Sum32()
+}
+
 // fetchRemoteResource fetch locally remote dependency
 func fetchRemoteResource(rs *remoteResource, tempDir *string) error {
 
 	fmt.Println("# Fetching:", rs.Name)
 
-	var repoTempDir = filepath.Join(*tempDir, "repo", rs.Name)
+	// identify fetched repo with branch/commit/etc..
+	var repoRef = strings.Split(strings.SplitAfter(rs.Repo, "ref=")[1], "?")[0]
+	if repoRef == "" { // otherwise hash whole repo url
+		repoRef = fmt.Sprintf("%d", hash(rs.Repo))
+	}
+	var repoReferal = fmt.Sprintf("%s-%s", rs.Name, repoRef)
+	var repoTempDir = filepath.Join(*tempDir, repoReferal)
 	rs.Dir = repoTempDir
 	if rs.Path != "" {
 		// if subPath defined
-		rs.Dir = filepath.Join(*tempDir, "repo", rs.Name, rs.Path)
+		rs.Dir = filepath.Join(*tempDir, repoReferal, rs.Path)
 	}
 
 	//handle credentials
@@ -192,7 +206,7 @@ func fetchRemoteResource(rs *remoteResource, tempDir *string) error {
 		return nil
 	}
 
-	// prepare dir
+	// cleanup/create temp dir
 	if os.IsNotExist(err) {
 		_ = os.MkdirAll(repoTempDir, 0770)
 	} else {
@@ -247,13 +261,10 @@ func fetchRemoteResource(rs *remoteResource, tempDir *string) error {
 func main() {
 
 	//DEBUG
-	//fmt.Println("START")
 	//for _, e := range os.Environ() {
 	//	pair := strings.SplitN(e, "=", 2)
-	//	fmt.Printf("%s='%s'\n", pair[0], pair[1])
+	//	fmt.Printf("#DEBUG %s='%s'\n", pair[0], pair[1])
 	//}
-	//fmt.Println(os.Args)
-	//fmt.Println("START")
 
 	if len(os.Args) != 2 {
 		fmt.Println("received too few args:", os.Args)
@@ -285,15 +296,21 @@ func main() {
 	}
 
 	//MAIN
-	// tempdir
-	var pluginConfigRoot = os.Getenv("KUSTOMIZE_PLUGIN_CONFIG_ROOT")
-	//pwd, err := os.Getwd()
-	//if err != nil {
-	//	log.Fatalf("Error getting pwd: %s", err)
-	//}
 
-	if pluginConfigRoot != "" && os.Getenv("KUSTOMIZE_DEBUG") != "" {
-		p.TempDir = filepath.Join(pluginConfigRoot, ".temp")
+	// FIXTURES
+	var pluginConfigRoot = os.Getenv("KUSTOMIZE_PLUGIN_CONFIG_ROOT")
+	if os.Getenv("KUSTOMIZE_GOTPLINFLATOR_ROOT") == "" {
+		var envsPath = strings.SplitAfter(pluginConfigRoot, "/envs/")
+		if len(envsPath) > 1 {
+			os.Setenv("KUSTOMIZE_GOTPLINFLATOR_ROOT", filepath.Join(envsPath[0], "../repos"))
+			os.Setenv("ENV", strings.Split(envsPath[1], "/")[0])
+		}
+	}
+	var gotplInflatorRoot = os.Getenv("KUSTOMIZE_GOTPLINFLATOR_ROOT")
+
+	// tempdir
+	if gotplInflatorRoot != "" {
+		p.TempDir = filepath.Join(gotplInflatorRoot, os.Getenv("ENV"))
 		if _, err = os.Stat(p.TempDir); os.IsNotExist(err) {
 			err = os.MkdirAll(p.TempDir, 0770)
 		}
@@ -341,12 +358,12 @@ func main() {
 			fmt.Println("# - no templates found")
 			continue
 		} else if err != nil {
-			log.Fatal(err)
+			log.Fatal("Rendering failed", err)
 		}
 
 		// actual render
 		for _, t := range templates {
-			fmt.Printf("# - %s\n", strings.SplitAfter(t, p.TempDir+"/repo/")[1])
+			fmt.Printf("# - %s\n", strings.SplitAfter(t, p.TempDir)[1])
 
 			RenderGotpl(t, &p.Values)
 		}
@@ -361,12 +378,12 @@ func main() {
 			fmt.Println(" - no manifests found")
 			continue
 		} else if err != nil {
-			log.Fatal(err)
+			log.Fatal("Print out failed", err)
 		}
 		for _, m := range manifests {
 			mContent, err := ioutil.ReadFile(m)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatal("Read manifest failed: %s", err)
 			}
 
 			// test/parse rendered manifest
@@ -388,11 +405,14 @@ func main() {
 	fmt.Print(output.String())
 
 	// cleanup
-	// TODO, defer on builtin plugin
 	if os.Getenv("KUSTOMIZE_DEBUG") == "" {
-		err := os.RemoveAll(p.TempDir)
-		if err != nil {
-			log.Fatal(err)
+		if gotplInflatorRoot != "" {
+			// do not remove already fetched repositories
+		} else {
+			err := os.RemoveAll(p.TempDir)
+			if err != nil {
+				log.Fatal("Cleanup failed: %s", err)
+			}
 		}
 	} else {
 		fmt.Println("# TempDir:", p.TempDir)

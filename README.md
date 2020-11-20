@@ -14,6 +14,12 @@ Goals:
 
 - exec plugin works
 
+## TODO
+
+- go plugin for Kustomize
+- avoid "no value" once rendered
+- digest sha for images -> ie: tag for source repo -> template, image both from the same tag
+
 ## Build & Install
 
 Clone to your Kustomize plugin folder and run:
