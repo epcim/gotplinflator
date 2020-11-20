@@ -12,13 +12,14 @@ Goals:
 
 ## Status
 
-- exec plugin works
+- exec plugin, functional
 
 ## TODO
 
-- go plugin for Kustomize
-- avoid "no value" once rendered
-- digest sha for images -> ie: tag for source repo -> template, image both from the same tag
+- [x] cache already fetched repos
+- [ ] go plugin for Kustomize
+- [ ] avoid "no value" once rendered
+- [ ] sugges digest sha for images -> ie: tag for source repo -> template, image both from the same tag
 
 ## Build & Install
 
@@ -37,14 +38,14 @@ Example:
 apiVersion: github.com/epcim/v1
 kind: GotplInflator
 metadata:
-  name: xyzDependencies
+  name: xyzApp
 
 dependencies:
 - name: xyz
   #image:
   repo: git@gitlab.com:acme/yyy/xyz//deploy/k8s?ref=master
   #                                 ^- sub-path on repo
-  #pull:           IfNotPresent
+  #pull:           Always
   #repoCreds:      # PLACEHOLDER
   #templateRegexp: "\\.tm?pl"
   #templateOpts:   # PLACEHOLDER
@@ -66,5 +67,6 @@ Optional ENV variables:
 ```sh
 
 export KUSTOMIZE_DEBUG=true
+export KUSTOMIZE_GOTPLINFLATOR_ROOT=$PWD/repos
 export KUSTOMIZE_GOTPLINFLATOR_PULL=Always
 ```
