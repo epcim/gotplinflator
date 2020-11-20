@@ -7,7 +7,9 @@ test:
 vendor:
 	go mod vendor
 
-build: vendor
+build: vendor build-exec #build-plugin
+
+build-plugin:
 	go build -buildmode plugin -o ./GotplInflator.so ./GotplInflator.go
 
 build-exec: vendor
