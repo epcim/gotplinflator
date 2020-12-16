@@ -396,7 +396,7 @@ func main() {
 			// skip namespace
 			// https://kubectl.docs.kubernetes.io/faq/kustomize/eschewedfeatures/#removal-directives
 			// Kustomize lacks resource removal and multiple namespace manifests from dependencies cause `already registered id: ~G_v1_Namespace|~X|sre\`
-			if mk["kind"] != "Namespace" {
+			if mk["kind"] != "Namespace" && mk["kind"] != "Secret" {
 				output.Write([]byte(mContent))
 				output.WriteString("\n---\n")
 			}
