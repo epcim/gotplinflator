@@ -28,8 +28,9 @@ import (
 )
 
 var (
-	gotplFilePattern    = "*.t*pl"
-	manifestFilePattern = "*.y*ml"
+	gotplFilePattern            = "*.t*pl"
+	manifestFilePattern         = "*.y*ml"
+	renderedManifestFilePattern = "*.rendered.y*ml"
 )
 
 var SprigCustomFuncs = map[string]interface{}{
@@ -38,10 +39,25 @@ var SprigCustomFuncs = map[string]interface{}{
 		if str, ok := rawEnvs.(string); ok {
 			err := json.Unmarshal([]byte(str), &envs)
 			if err != nil {
-				log.Fatal("failed to unmarshal Envs, %s", err)
+				log.Fatal("failed to unmarshal Envs,", err)
 			}
 		}
 		return envs
+	},
+	//
+	// Shameless copy from:
+	// https://github.com/helm/helm/blob/master/pkg/engine/engine.go#L107
+	//
+	// Some more Helm template functions:
+	// https://github.com/helm/helm/blob/master/pkg/engine/funcs.go
+	//
+	"toYaml": func(v interface{}) string {
+		data, err := yaml.Marshal(v)
+		if err != nil {
+			// Swallow errors inside of a template.
+			return ""
+		}
+		return strings.TrimSuffix(string(data), "\n")
 	},
 }
 
@@ -86,6 +102,7 @@ func stringInSlice(a string, list []string) bool {
 }
 
 // FlattenMap flatten context values to snake_case
+// How about https://godoc.org/github.com/jeremywohl/flatten
 func FlattenMap(prefix string, src map[string]interface{}, dest map[string]interface{}) {
 	if len(prefix) > 0 {
 		prefix += "_"
@@ -124,12 +141,13 @@ func WalkMatch(root, pattern string) ([]string, error) {
 	return matches, nil
 }
 
-func RenderGotpl(t string, context *map[string]interface{}) {
+// RenderGotpl process templates
+func RenderGotpl(rs remoteResource, t string, context *map[string]interface{}) {
 
 	// read template
 	tContent, err := ioutil.ReadFile(t)
 	if err != nil {
-		log.Fatal("Read template failed: %s", err)
+		log.Fatal("Read template failed:", err)
 	}
 
 	// init
@@ -148,15 +166,16 @@ func RenderGotpl(t string, context *map[string]interface{}) {
 	var rb bytes.Buffer
 	err = tpl.Execute(&rb, context)
 	if err != nil {
-		log.Fatal("Failed to render template: %s", err)
+		log.Fatal("Failed to render", err)
 		os.Exit(1)
 	}
 
 	// write
 	tBasename := strings.TrimSuffix(t, filepath.Ext(t))
-	err = ioutil.WriteFile(tBasename, rb.Bytes(), 0640)
+	tBasename = strings.TrimSuffix(t, filepath.Ext(tBasename)) // removes .yaml
+	err = ioutil.WriteFile(tBasename+".rendered.yaml", rb.Bytes(), 0640)
 	if err != nil {
-		log.Fatal("Write template failed: %s", err)
+		log.Fatal("Write template failed:", err)
 	}
 }
 
@@ -195,9 +214,18 @@ func fetchRemoteResource(rs *remoteResource, tempDir *string) error {
 	fmt.Println("# Fetching:", rs.Name)
 
 	// identify fetched repo with branch/commit/etc..
-	var repoRef = strings.Split(strings.SplitAfter(rs.Repo, "ref=")[1], "?")[0]
-	if repoRef == "" { // otherwise hash whole repo url
-		repoRef = fmt.Sprintf("%d", hash(rs.Repo))
+	var repoRefSpec = strings.SplitAfter(rs.Repo, "ref=")
+	var repoRef string
+	if len(repoRefSpec) > 1 {
+		repoRef = strings.Split(repoRefSpec[1], "?")[0]
+	}
+	if repoRef == "" {
+		//original idea
+		//repoRef = fmt.Sprintf("%d", hash(rs.Repo))
+		//
+		// workaround, go-getter fails to fetch repo with subpath without it
+		repoRef = "master"
+		rs.Repo = rs.Repo + "?ref=master"
 	}
 	var repoReferal = fmt.Sprintf("%s-%s", rs.Name, repoRef)
 	var repoTempDir = filepath.Join(*tempDir, repoReferal)
@@ -280,7 +308,6 @@ func main() {
 
 	if len(os.Args) != 2 {
 		fmt.Println("received too few args:", os.Args)
-		fmt.Println("always invoke this via kustomize plugins")
 		os.Exit(1)
 	}
 
@@ -289,7 +316,7 @@ func main() {
 	content, err := ioutil.ReadFile(os.Args[1])
 
 	if err != nil {
-		fmt.Println("unable to read in manifest", os.Args[1])
+		fmt.Println("unable to read in manifest", os.Args[1], err)
 		os.Exit(1)
 	}
 
@@ -362,6 +389,8 @@ func main() {
 
 		fmt.Println("# Rendering:", rs.Name)
 
+		// TODO, render manifests to output buffer directly. So it does not require
+
 		// find templates
 		if rs.TemplatePattern != "" {
 			gotplFilePattern = rs.TemplatePattern
@@ -378,7 +407,7 @@ func main() {
 		for _, t := range templates {
 			fmt.Printf("# - %s\n", strings.SplitAfter(t, p.TempDir)[1])
 
-			RenderGotpl(t, &p.Values)
+			RenderGotpl(rs, t, &p.Values)
 		}
 	}
 
@@ -386,7 +415,7 @@ func main() {
 	var output bytes.Buffer
 	output.WriteString("\n---\n")
 	for _, rs := range p.Dependencies {
-		manifests, err := WalkMatch(rs.Dir, manifestFilePattern)
+		manifests, err := WalkMatch(rs.Dir, renderedManifestFilePattern)
 		if os.IsNotExist(err) {
 			fmt.Println(" - no manifests found")
 			continue
@@ -396,14 +425,14 @@ func main() {
 		for _, m := range manifests {
 			mContent, err := ioutil.ReadFile(m)
 			if err != nil {
-				log.Fatal("Read manifest failed: %s", err)
+				log.Fatal("Read manifest failed:", err)
 			}
 
 			// test/parse rendered manifest
 			mk := make(map[interface{}]interface{})
 			err = yamlv2.Unmarshal([]byte(mContent), &mk)
 			if err != nil {
-				log.Fatalf("Failed to load rendered manifest: %v", err)
+				log.Fatalf("Failed to load rendered manifest:", err)
 			}
 			// Kustomize lacks resource removal and multiple namespace manifests from dependencies cause `already registered id: ~G_v1_Namespace|~X|sre\`
 			// https://kubectl.docs.kubernetes.io/faq/kustomize/eschewedfeatures/#removal-directives
@@ -429,7 +458,7 @@ func main() {
 		} else {
 			err := os.RemoveAll(p.TempDir)
 			if err != nil {
-				log.Fatal("Cleanup failed: %s", err)
+				log.Fatal("Cleanup failed:", err)
 			}
 		}
 	} else {
