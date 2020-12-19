@@ -61,6 +61,8 @@ type remoteResource struct {
 	Template        string `json:"template,omitempty" yaml:"template,omitempty"`
 	TemplatePattern string `json:"templatePatt,omitempty" yaml:"templatePatt,omitempty"`
 	TemplateOpts    string `json:"templateOpts,omitempty" yaml:"templateOpts,omitempty"`
+	// kinds
+	SkipKinds []string `json:"skipKinds,omitempty" yaml:"skipKinds,omitempty"`
 
 	// Dir is where the resource is cloned
 	Dir string
@@ -71,6 +73,16 @@ type plugin struct {
 	Dependencies []remoteResource       `json:"dependencies,omitempty" yaml:"dependencies,omitempty"`
 	Values       map[string]interface{} `json:"values,omitempty" yaml:"values,omitempty"`
 	TempDir      string
+}
+
+// stringInSlice boolean function
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
 }
 
 // FlattenMap flatten context values to snake_case
@@ -393,15 +405,20 @@ func main() {
 			if err != nil {
 				log.Fatalf("Failed to load rendered manifest: %v", err)
 			}
-			// skip namespace
-			// https://kubectl.docs.kubernetes.io/faq/kustomize/eschewedfeatures/#removal-directives
 			// Kustomize lacks resource removal and multiple namespace manifests from dependencies cause `already registered id: ~G_v1_Namespace|~X|sre\`
-			if mk["kind"] != "Namespace" && mk["kind"] != "Secret" {
-				output.Write([]byte(mContent))
-				output.WriteString("\n---\n")
+			// https://kubectl.docs.kubernetes.io/faq/kustomize/eschewedfeatures/#removal-directives
+			k := mk["kind"]
+			if k != nil {
+				if len(rs.SkipKinds) == 0 { // by default excluded Kinds
+					rs.SkipKinds = append(rs.SkipKinds, "namespace")
+					rs.SkipKinds = append(rs.SkipKinds, "secret")
+				}
+				if !stringInSlice(strings.ToLower(k.(string)), rs.SkipKinds) {
+					output.Write([]byte(mContent))
+					output.WriteString("\n---\n")
+				}
 			}
 		}
-
 	}
 	fmt.Print(output.String())
 
