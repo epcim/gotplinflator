@@ -1,6 +1,9 @@
 // Copyright 2019 The Kubernetes Authors.
 // SPDX-License-Identifier: Apache-2.0
 
+// DEPRECATED
+//
+
 package main
 
 import (
@@ -8,7 +11,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"io/ioutil"
 	"log"
 	"os"
@@ -199,13 +201,6 @@ func getRepoCreds(repoCreds string) string {
 		}
 	}
 	return cr
-}
-
-// hash generate fowler–noll–vo hash from string
-func hash(s string) uint32 {
-	h := fnv.New32a()
-	h.Write([]byte(s))
-	return h.Sum32()
 }
 
 // fetchRemoteResource fetch locally remote dependency

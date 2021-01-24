@@ -1,33 +1,40 @@
 
 # GotplInflator for Kustomize
 
-CURRENTLY PROTOTYPE ONLY.
+See PR as builtin plugin: https://github.com/kubernetes-sigs/kustomize/pull/3490
 
-This is an alternative for these which workflow is not 100% Kustomize.
+About:
+- This is not replacement for HelmChart generator
+- Makes easy reuse, even "pieces" of existing Helm charts (long-term) or other templated manifests available
+- To simplify complexity in latter Kustomization
 
-Goals:
-- reuse existing manifests (in gotpl)
-- generic template renderer (gotpl, jinja, jsonent ?)
-- by rendering boilerplate, simplify number of vectors and yaml porn in base manifest/repo -> less less source, less patching
+Who might want to use it:
+- you have library with existing go-templated manifests already
+- you know your manifests and you want low-level control
+- deployment perspective
+- you live on edge (build from master)
+- you store generated templates as versioned artefacts
+- you store templates (versioned) linked to your image builds (versioned)
+
 
 ## Status
 
-- exec plugin, functional
+Work In Progress
 
-## TODO
+Open TODOs are in this [README](https://github.com/epcim/kustomize/blob/gotplinflator/plugin/builtin/gotplinflator/README.md)
 
-- [x] cache already fetched repos
-- [ ] go plugin for Kustomize
-- [ ] avoid "no value" once rendered
-- [ ] sugges digest sha for images -> ie: tag for source repo -> template, image both from the same tag
+Exec plugin might be slightly out-dated. Intention is to use it as builtin plugin anyway.
 
 ## Build & Install
 
-Clone to your Kustomize plugin folder and run:
+Clone, read Makefile and:
 ```sh
+export GO111MODULE=on
 
-make vendor
-make build-exec
+go get -u github.com/epcim/gotplinflator
+cd $GOPATH/src/github.com/epcim/gotplinflator
+
+make && make install
 ```
 
 ## Usage
@@ -35,38 +42,37 @@ make build-exec
 Example:
 
 ```yaml
-apiVersion: github.com/epcim/v1
+
+apiVersion: local/v1
 kind: GotplInflator
 metadata:
-  name: xyzApp
+  name: example
 
 dependencies:
-- name: xyz
-  #image:
-  repo: git@gitlab.com:acme/yyy/xyz//deploy/k8s?ref=master
-  #                                 ^- sub-path on repo
-  #pull:           Always
-  #repoCreds:      # PLACEHOLDER
-  #templateRegexp: "\\.tm?pl"
-  #templateOpts:   # PLACEHOLDER
-  #template: gotpl # PLACEHOLDER
+- name: nginx
+  repo: github.com/epcim/k8s-manifests//example/manifests?ref=main
+  #path: example/manifests
+  #pull: Always
+  #templateGlob:   "*.t*pl"
+  #templateOpts    # PLACEHOLDER
 
 values:
-  xyz_kms_access: aws
-  xyz_cpu_request: "100m"
-  xyz:
+  nginx_cpu_request: "512m"
+  nginx:
     cpu:
-      limit: 100m
+      limit:  "1000m"
     memory:
-      limit: 100M
-
+      limit: "1024M"
 ```
 
 Optional ENV variables:
 
 ```sh
-
 export KUSTOMIZE_DEBUG=true
 export KUSTOMIZE_GOTPLINFLATOR_ROOT=$PWD/repos
 export KUSTOMIZE_GOTPLINFLATOR_PULL=Always
 ```
+
+## Caveat
+
+As with many Go plugins, you may have to fork this repo and adjust its go.mod in order to correct package mismatches with your kustomize binary.
