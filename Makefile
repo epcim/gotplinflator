@@ -7,7 +7,7 @@ install_dir = $(XDG_CONFIG_HOME)/kustomize/plugin/local/v1/gotplinflator
 
 buid: tidy build-plugin build-exec
 
-install: build install-plugin install-exec
+install: build install-plugin
 
 build-plugin: vendor
 	go build -x -trimpath $(GOFLAGS) -buildmode plugin -o ./GotplInflator.so ./GotplInflator.go
