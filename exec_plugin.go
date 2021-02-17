@@ -182,7 +182,7 @@ func RenderGotpl(rs remoteResource, t string, context *map[string]interface{}) {
 }
 
 //getRepoCreds returns go-getter URI based on required credential profile (see: plugin configuration)
-func getRepoCreds(repoCreds string) string {
+func getRepoCreds(repoCreds string) (string, error) {
 	// not required if exec plugin => os env
 	// for S3 you may want better way to get tokens, keys etc..
 	// TODO, builtin plugin, load repoCreds from plugin config
@@ -193,14 +193,14 @@ func getRepoCreds(repoCreds string) string {
 			if pair[0] == "sshkey" {
 				key, err := ioutil.ReadFile(pair[1])
 				if err != nil {
-					log.Fatal(err)
+					return err
 				}
 				keyb64 := base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(string(key))))
 				cr = fmt.Sprintf("%s?sshkey=%s", cr, string(keyb64))
 			}
 		}
 	}
-	return cr
+	return cr, nil
 }
 
 // fetchRemoteResource fetch locally remote dependency

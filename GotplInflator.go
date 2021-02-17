@@ -25,8 +25,11 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	//getter "github.com/hashicorp/go-getter"
-	getter "github.com/yujunz/go-getter"
+	//FIXME, go-getter source
+	//for plugin
+	getter "github.com/hashicorp/go-getter"
+	//for built-in - already an dependency of kustomize
+	//getter "github.com/yujunz/go-getter"
 
 	yamlv2 "gopkg.in/yaml.v2"
 )
@@ -61,6 +64,8 @@ type GotplInflatorArgs struct {
 	Dependencies []RemoteResource       `json:"dependencies,omitempty" yaml:"dependencies,omitempty"`
 	Values       map[string]interface{} `json:"values,omitempty" yaml:"values,omitempty"`
 }
+
+var KustomizePlugin GotplInflatorPlugin
 
 var gotplFilePattern = "*.t*pl"
 var manifestFilePattern = "*.y*ml"
