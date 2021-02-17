@@ -25,29 +25,24 @@ Open TODOs are in this [README](https://github.com/epcim/kustomize/blob/gotplinf
 
 Exec plugin might be slightly out-dated. Intention is to use it as builtin plugin anyway.
 
-## Build & Install
 
+
+## Build & Install
 
 Clone, read Makefile and:
 ```sh
-export GO111MODULE=on
-
-go get -u github.com/epcim/gotplinflator
-cd $GOPATH/src/github.com/epcim/gotplinflator
+# see .envrc variables you might want to set
 
 make && make install
 ```
 
-To fix modules to meet your kustomize version:
+Poor way to fix modules to meet your kustomize version:
 ```sh
 # list upstream taged releases
 git -c 'versionsort.suffix=-' ls-remote --tags --sort='v:refname' https://github.com/kubernetes-sigs/kustomize 'kustomize/v*.*.*' \
   |tail --lines=10 | cut --delimiter='/' --fields=4
 
-KUSTOMIZE_V=v4.0.1
-curl -qsL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/kustomize/${KUSTOMIZE_V}/kustomize/go.mod" | grep -v "^replace" >| go.mod
-
-go mod tidy
+KUSTOMIZE_VERSION=v4.0.1 make fixmod
 ```
 
 ## Usage
