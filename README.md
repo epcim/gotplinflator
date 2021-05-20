@@ -27,22 +27,43 @@ Exec plugin might be slightly out-dated. Intention is to use it as builtin plugi
 
 
 
+
+
 ## Build & Install
+
+Build in the plugin folder of `kustomize you are using`:
+
+```
+KUSTOMIZE_VERSION=$(kustomize version|awk -F'[: ]' '{print $2}')
+
+git clone https://github.com/kubernetes-sigs/kustomize.git
+cd kustomize
+git checkout kustomize/v4.1.2
+
+cd plugin
+❯ mkdir -p local/v1
+❯ cp -a /Users/pmichalec/Sync/workspace-ves/bootstrap-gc/kustomize/plugin/local/v1/gotplinflator local/v1
+
+```
 
 Clone, read Makefile and:
 ```sh
 # see .envrc variables you might want to set
 
-make && make install
+make build-plugin
+make install-plugin       #if you wish to install it to XGD_CONFIG_HOME=$HOME/.config
 ```
 
 Poor way to fix modules to meet your kustomize version:
 ```sh
-# list upstream taged releases
+
+# to list upstream taged releases
 git -c 'versionsort.suffix=-' ls-remote --tags --sort='v:refname' https://github.com/kubernetes-sigs/kustomize 'kustomize/v*.*.*' \
   |tail --lines=10 | cut --delimiter='/' --fields=4
 
+# to fix mods
 KUSTOMIZE_VERSION=v4.0.1 make fixmod
+KUSTOMIZE_VERSION=$(kustomize version|awk -F'[/ ]' '{print $2}') make fixmod
 ```
 
 ## Usage
