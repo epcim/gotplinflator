@@ -1,5 +1,5 @@
 
-KUSTOMIZE_VERSION = v4.1.2
+KUSTOMIZE_VERSION="v4.1.3"
 
 GO_PLUGIN_NAME="GotplInflator.so"
 EXEC_PLUGIN_NAME="GotplInflator"
@@ -12,17 +12,20 @@ install_dir = $(XDG_CONFIG_HOME)/kustomize/plugin/local/v1/gotplinflator
 
 buid: tidy build-plugin build-exec
 
-install: go-install clean build install-plugin
+install: clean build install-plugin
 
 
 build-plugin: vendor
 	go build -x -trimpath $(GOFLAGS) -buildmode plugin -o ./GotplInflator.so ./GotplInflator.go
 
-install-plugin: tidy build-plugin
-	mkdir -p $(install_dir) && cp -v GotplInflator.so $(install_dir)
 #.PHONY: install-plugin
-#install-plugin:
-#	./scripts/install-gotpl.sh
+install-plugin: tidy build-plugin
+	mkdir -p $(install_dir)
+	cp -v GotplInflator.so $(install_dir)
+	mkdir -p $(HOME)/sigs.k8s.io/kustomize/plugin/local/v1/
+	cp -v GotplInflator.so $(HOME)/sigs.k8s.io/kustomize/plugin/local/v1/
+	mkdir -p $(GOPATH)/pkg/mod/sigs.k8s.io/kustomize/plugin/local/v1/ 
+	cp -v GotplInflator.so $(GOPATH)/pkg/mod/sigs.k8s.io/kustomize/plugin/local/v1/
 
 build-exec: tidy vendor
 	go build -x $(GOFLAGS) -o ./GotplInflator ./exec_plugin.go
@@ -34,9 +37,10 @@ fixmod: getmodupstream tidy vendor
 
 getmodupstream:
 	@curl -qsL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/kustomize/$(KUSTOMIZE_VERSION)/kustomize/go.mod" \
-		| egrep -v '^replace' \
+	| egrep -v '^replace' \
 		| sed 's,^module.*,module $(PLUGIN_REPOSITORY),' >| go.mod
-	@curl -qsL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/kustomize/$(KUSTOMIZE_VERSION)/kustomize/go.sum" >| go.sum
+	@rm -rf go.sum
+#	@curl -qsL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/kustomize/$(KUSTOMIZE_VERSION)/kustomize/go.sum" >| go.sum
 
 
 .PHONY: goptlinflator
@@ -76,6 +80,7 @@ clean: clean-plugins
 clean-plugins:
 	rm -rf $(XDG_CONFIG_HOME)/kustomize/plugin/local/v1/ || true
 	rm -rf $(HOME)/sigs.k8s.io/kustomize/plugin/local/v1/ || true
+	rm -rf $(GOPATH)/pkg/mod/sigs.k8s.io/kustomize/plugin/local/v1/ || true
 
 .PHONY: kustomize
 kustomize:

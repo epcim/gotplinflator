@@ -18,18 +18,12 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig"
+	getter "github.com/hashicorp/go-getter"
 	"sigs.k8s.io/kustomize/api/filesys"
 	"sigs.k8s.io/kustomize/api/resmap"
-
 	"sigs.k8s.io/kustomize/api/types"
 
 	"sigs.k8s.io/yaml"
-
-	//FIXME, go-getter source
-	//for plugin
-	getter "github.com/hashicorp/go-getter"
-	//for built-in - already an dependency of kustomize
-	//getter "github.com/yujunz/go-getter"
 
 	yamlv2 "gopkg.in/yaml.v2"
 )
@@ -102,11 +96,9 @@ var SprigCustomFuncs = map[string]interface{}{
 // from a remote or local go templates.
 type GotplInflatorPlugin struct {
 	//type remoteResource struct {
-	h                *resmap.PluginHelpers
-	types.ObjectMeta `json:"metadata,omitempty" yaml:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
-
-	//types.GotplInflatorArgs
-	GotplInflatorArgs
+	h                 *resmap.PluginHelpers
+	types.ObjectMeta  `json:"metadata,omitempty" yaml:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+	GotplInflatorArgs //types.GotplInflatorArgs
 
 	rf *resmap.Factory
 
@@ -265,7 +257,6 @@ func (p *GotplInflatorPlugin) getTempDir() error {
 func (p *GotplInflatorPlugin) RenderDependencies() error {
 	for _, rs := range p.Dependencies {
 
-		//DEBUG
 		//fmt.Println("# Rendering:", rs.Name)
 
 		// TODO, render manifests to output buffer directly. So it does not require
@@ -320,16 +311,6 @@ func (p *GotplInflatorPlugin) fetchDependencies() error {
 				return err
 			}
 		}
-
-		////DEBUG
-		////fmt.println("# go-getter", rs.repo, repotempdir)
-		//cmd := exec.Command("go-getter", rs.Repo, repotempdir)
-		////cmd.stdout = os.stdout
-		////cmd.stderr = os.stderr
-		//err = cmd.Run()
-		//if err != nil {
-		//	return fmt.Errorf("go-getter failed to clone repo %s", err)
-		//}
 
 		//fetch
 		pwd, err := os.Getwd()
@@ -393,7 +374,6 @@ func (p *GotplInflatorPlugin) ReadManifests(output *bytes.Buffer) error {
 		} else if err != nil {
 			return err
 		}
-
 		for _, m := range manifests {
 			mContent, err := ioutil.ReadFile(m)
 			if err != nil {
@@ -493,6 +473,9 @@ func WalkMatch(root, pattern string) ([]string, error) {
 
 //getRepoCreds read reference to credentials and returns go-getter URI
 func getRepoCreds(repoCreds string) (string, error) {
+	// not required if exec is used for go-getter => os env
+	// for S3 you may want better way to get tokens, keys etc..
+	// FIXME, builtin plugin, load repoCreds from plugin config?
 	var cr = ""
 	if repoCreds != "" {
 		for _, e := range strings.Split(repoCreds, ",") {
